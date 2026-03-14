@@ -11,3 +11,15 @@ All desktop and mobile CPUs using Zen 1-3 architecture should be supported, incl
 Tested on:
 - Ryzen 5 5600H
 - Ryzen 5 5600
+
+# Configuration
+
+Module parameters:
+bclk_khz - BCLK OC target in kHz, for default 100MHz, type 100000. Allowed range - from 96000 to 151000
+ssc - Keep BCLK spread spectrum enabled. It is disabled by default
+
+Sysfs:
+/sys/devices/platform/zen-bclk-oc/bclk_khz - Changes BCLK at runtime. May cause drifting timers in currently running apps that use raw rdtsc to measure time
+
+# Build
+To compile the module enter use `make` command in main directory

@@ -122,7 +122,7 @@ static void refclk_set(int clk_khz) {
 }
 
 static void refclk_set_target(int clk) {
-    pr_info("Setting BCLK to %lu kHz\n", clk); 
+    pr_info("Setting BCLK to %d kHz\n", clk); 
     while (clk > current_refclk) {
         refclk_set(min(current_refclk + 125, clk));
         udelay(30);
