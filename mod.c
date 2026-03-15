@@ -1,6 +1,3 @@
-
-#define pr_fmt(fmt) KBUILD_MODNAME ": " fmt
-
 #include <linux/platform_device.h>
 #include <linux/delay.h>
 #include <linux/clocksource.h>
@@ -67,6 +64,8 @@ static u64 loops_per_jiffy_init = 0;
 
 typedef void *kallsyms_lookup_name_f(const char *);
 
+typedef int change_clocksource_f(void *);
+change_clocksource_f *change_clocksource;
 
 static void *lookup_function_address(const char *func_name) {
     static void *kallsyms_addr = NULL;
@@ -119,25 +118,41 @@ static void refclk_set(int clk_khz) {
     clocksource_tsc->mult = tsc_mult_init * 100000 / clk_khz;
     clocksource_tsc->cs_last = clocksource_tsc->read(clocksource_tsc);
     clocksource_tsc->wd_last = clocksource_hpet->read(clocksource_hpet);
+    change_clocksource(clocksource_tsc);
     cpu_khz = (u64)cpu_khz_init * clk_khz / 100000;
     tsc_khz = (u64)tsc_khz_init * clk_khz / 100000;
     loops_per_jiffy = loops_per_jiffy_init * clk_khz / 100000;
 }
+
+DEFINE_MUTEX(refclk_set_mutex);
 
 static bool refclk_set_target(int clk) {
     if (clk < REFCLK_MIN_KHZ || clk > REFCLK_MAX_KHZ) {
         pr_warn("BCLK %d not in [%d, %d] range\n", clk, REFCLK_MIN_KHZ, REFCLK_MAX_KHZ); 
         return false;
     }
+    mutex_lock(&refclk_set_mutex);
+    int prev_delay_clk = current_refclk;
     pr_info("Setting BCLK to %d kHz\n", clk); 
     while (clk > current_refclk) {
         refclk_set(min(current_refclk + 125, clk));
-        udelay(30);
+        udelay(50);
+        // Additional delay if the difference in clock is too high
+        if (current_refclk - prev_delay_clk > 1000) {
+            prev_delay_clk = current_refclk;
+            msleep(200);
+        }
     }
-    while (clk < current_refclk) {
+    while (clk < current_refclk) {; 
         refclk_set(max(current_refclk - 250, clk));
-        udelay(30);
+        udelay(50);
+        // Additional delay if the difference in clock is too high
+        if (prev_delay_clk - current_refclk > 2000) {
+            prev_delay_clk = current_refclk;
+            msleep(200);
+        }
     }
+    mutex_unlock(&refclk_set_mutex);
     pr_info("BCLK changed\n"); 
     return true;
 }
@@ -166,6 +181,7 @@ static int zen_bclk_oc_probe(struct platform_device *dev) {
 
     clocksource_hpet = lookup_function_address("clocksource_hpet");
     clocksource_tsc = lookup_function_address("clocksource_tsc");
+    change_clocksource = lookup_function_address("change_clocksource");
 
     if (!clocksource_hpet || !clocksource_tsc) {
         pr_err("Clocksource objects not available\n");
