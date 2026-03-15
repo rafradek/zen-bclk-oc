@@ -8,7 +8,7 @@
 
 // Module metadata
 MODULE_AUTHOR("Rafał Radtke rafradek@hotmail.com");
-MODULE_DESCRIPTION("Mo");
+MODULE_DESCRIPTION("Kernel module for AMD CPU BCLK overclocking");
 MODULE_LICENSE("Dual MIT/GPL");
 
 #ifndef KBUILD_MODNAME
@@ -145,7 +145,7 @@ static bool refclk_set_target(int clk) {
 static ssize_t bclk_khz_show(struct device *dev, struct device_attribute *attr,
 			char *buf) {
     
-    ssize_t ret = sprintf(buf, "%d", refclk_get());
+    ssize_t ret = sprintf(buf, "%d\n", refclk_get());
     return ret;
 }
 
