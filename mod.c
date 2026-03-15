@@ -41,6 +41,9 @@ MODULE_LICENSE("Dual MIT/GPL");
 #define AMD_FCH_REFCLK_BASE		0xE00
 #define AMD_FCH_REFCLK_SIZE		0x48
 
+#define REFCLK_MIN_KHZ 96000
+#define REFCLK_MAX_KHZ 151000
+
 static const struct resource amd_fch_refclk_iores =
 	DEFINE_RES_MEM_NAMED(
 		AMD_FCH_MMIO_BASE + AMD_FCH_REFCLK_BASE,
@@ -121,7 +124,11 @@ static void refclk_set(int clk_khz) {
     loops_per_jiffy = loops_per_jiffy_init * clk_khz / 100000;
 }
 
-static void refclk_set_target(int clk) {
+static bool refclk_set_target(int clk) {
+    if (clk < REFCLK_MIN_KHZ || clk > REFCLK_MAX_KHZ) {
+        pr_warn("BCLK %d not in [%d, %d] range\n", clk, REFCLK_MIN_KHZ, REFCLK_MAX_KHZ); 
+        return false;
+    }
     pr_info("Setting BCLK to %d kHz\n", clk); 
     while (clk > current_refclk) {
         refclk_set(min(current_refclk + 125, clk));
@@ -132,6 +139,7 @@ static void refclk_set_target(int clk) {
         udelay(30);
     }
     pr_info("BCLK changed\n"); 
+    return true;
 }
 
 static ssize_t bclk_khz_show(struct device *dev, struct device_attribute *attr,
@@ -155,12 +163,22 @@ DEVICE_ATTR_RW(bclk_khz);
 
 static int zen_bclk_oc_probe(struct platform_device *dev) {
     device = dev;
-    device_create_file(&dev->dev, &dev_attr_bclk_khz);
 
     clocksource_hpet = lookup_function_address("clocksource_hpet");
     clocksource_tsc = lookup_function_address("clocksource_tsc");
 
+    if (!clocksource_hpet || !clocksource_tsc) {
+        pr_err("Clocksource objects not available\n");
+        return -ENOENT;
+    }
+
     amd_fch_refclk_base_ptr = devm_ioremap_resource(&device->dev, &amd_fch_refclk_iores);
+
+    if (!amd_fch_refclk_base_ptr) {
+        pr_err("Failed to map AMD FCH memory\n");
+        return -ENXIO;
+    }
+
     amd_fch_refclk_ssc_ptr = amd_fch_refclk_base_ptr + 0x08;
     amd_fch_refclk_clk_ptr = amd_fch_refclk_base_ptr + 0x10;
     amd_fch_refclk_loaden_ptr = amd_fch_refclk_base_ptr + 0x40;
@@ -184,8 +202,14 @@ static int zen_bclk_oc_probe(struct platform_device *dev) {
     clocksource_tsc->wd_last = clocksource_hpet->read(clocksource_hpet);
 
     if (target_refclk != 0) {
-        refclk_set_target(target_refclk);
+        bool success = refclk_set_target(target_refclk);
+        if (!success) {
+            return -EINVAL;
+        }
     }
+
+    device_create_file(&dev->dev, &dev_attr_bclk_khz);
+    
     return 0;
 }
 

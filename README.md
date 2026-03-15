@@ -25,3 +25,4 @@ Sysfs:
 
 # Build
 To compile the module enter use `make` command in main directory
+kallsyms and kprobes must be enabled in the kernel
