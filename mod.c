@@ -54,6 +54,7 @@ u32 __iomem *amd_fch_refclk_loaden_ptr;
 
 struct platform_device *device = NULL;
 
+char *saved_command_line = NULL;
 struct clocksource *clocksource_hpet;
 struct clocksource *clocksource_tsc;
 
@@ -182,8 +183,9 @@ static int zen_bclk_oc_probe(struct platform_device *dev) {
     clocksource_hpet = lookup_function_address("clocksource_hpet");
     clocksource_tsc = lookup_function_address("clocksource_tsc");
     change_clocksource = lookup_function_address("change_clocksource");
+    saved_command_line = *(char **)lookup_function_address("saved_command_line");
 
-    if (!clocksource_hpet || !clocksource_tsc) {
+    if (!clocksource_hpet || !clocksource_tsc || !change_clocksource) {
         pr_err("Clocksource objects not available\n");
         return -ENOENT;
     }
@@ -217,7 +219,7 @@ static int zen_bclk_oc_probe(struct platform_device *dev) {
     clocksource_tsc->cs_last = clocksource_tsc->read(clocksource_tsc);
     clocksource_tsc->wd_last = clocksource_hpet->read(clocksource_hpet);
 
-    if (target_refclk != 0) {
+    if (target_refclk != 0 && !(saved_command_line && strstr(saved_command_line, " recovery "))) {
         bool success = refclk_set_target(target_refclk);
         if (!success) {
             return -EINVAL;
