@@ -102,6 +102,7 @@ static int refclk_get(void) {
 volatile int current_refclk = 100000;
 int target_refclk = 0;
 bool ssc = false;
+bool immediate_apply = false;
 
 static void refclk_set(int clk_khz) {
     int clk_mhz = clk_khz / 1000;
@@ -112,6 +113,8 @@ static void refclk_set(int clk_khz) {
     }
     current_refclk = clk_khz;
 
+    unsigned long flags;
+    local_irq_save(flags);
     iowrite32((ioread32(amd_fch_refclk_loaden_ptr) | 0x2000000), amd_fch_refclk_loaden_ptr);
     iowrite32((ioread32(amd_fch_refclk_clk_ptr) & 0xE1FFF000) | (clk_off << 4) | ((clk_frac & 0xF) << 25), amd_fch_refclk_clk_ptr);
     iowrite32((ioread32(amd_fch_refclk_loaden_ptr) | 0x40000000), amd_fch_refclk_loaden_ptr);
@@ -123,6 +126,7 @@ static void refclk_set(int clk_khz) {
     cpu_khz = (u64)cpu_khz_init * clk_khz / 100000;
     tsc_khz = (u64)tsc_khz_init * clk_khz / 100000;
     loops_per_jiffy = loops_per_jiffy_init * clk_khz / 100000;
+    local_irq_restore(flags);
 }
 
 DEFINE_MUTEX(refclk_set_mutex);
@@ -133,24 +137,30 @@ static bool refclk_set_target(int clk) {
         return false;
     }
     mutex_lock(&refclk_set_mutex);
-    int prev_delay_clk = current_refclk;
+    
     pr_info("Setting BCLK to %d kHz\n", clk); 
-    while (clk > current_refclk) {
-        refclk_set(min(current_refclk + 125, clk));
-        udelay(50);
-        // Additional delay if the difference in clock is too high
-        if (current_refclk - prev_delay_clk > 1000) {
-            prev_delay_clk = current_refclk;
-            msleep(200);
-        }
+    if (immediate_apply) {
+        refclk_set(clk);
     }
-    while (clk < current_refclk) {; 
-        refclk_set(max(current_refclk - 250, clk));
-        udelay(50);
-        // Additional delay if the difference in clock is too high
-        if (prev_delay_clk - current_refclk > 2000) {
-            prev_delay_clk = current_refclk;
-            msleep(200);
+    else {
+        int prev_delay_clk = current_refclk;
+        while (clk > current_refclk) {
+            refclk_set(min(current_refclk + 125, clk));
+            udelay(50);
+            // Additional delay if the difference in clock is too high
+            if (current_refclk - prev_delay_clk > 1000) {
+                prev_delay_clk = current_refclk;
+                msleep(200);
+            }
+        }
+        while (clk < current_refclk) {; 
+            refclk_set(max(current_refclk - 250, clk));
+            udelay(50);
+            // Additional delay if the difference in clock is too high
+            if (prev_delay_clk - current_refclk > 2000) {
+                prev_delay_clk = current_refclk;
+                msleep(200);
+            }
         }
     }
     mutex_unlock(&refclk_set_mutex);
@@ -298,3 +308,4 @@ module_exit(zen_bclk_oc_exit);
 
 module_param_named(bclk_khz, target_refclk, int, 0644);
 module_param_named(ssc, ssc, bool, 0644);
+module_param_named(immediate_apply, immediate_apply, bool, 0644);
