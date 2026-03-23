@@ -9,9 +9,14 @@ A bad overclock may persist after a shutdown, in which case it might be necessar
 # Compatibility
 All desktop and mobile CPUs using Zen 1-3 architecture might be supported, including CPUs with locked overclocking.
 
-Tested on:
-- Ryzen 5 5600H
+### Tested on:
+Laptops:
+- Ryzen 5 5600H - Asus Vivobook M1603Q
+
+Desktop Acer PRIME B450M-A II:
 - Ryzen 5 5600
+- Ryzen 5 3600
+- Ryzen 5 1600
 
 # Installation
 ### Requirements
