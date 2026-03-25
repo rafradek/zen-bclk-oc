@@ -68,6 +68,10 @@ typedef void *kallsyms_lookup_name_f(const char *);
 typedef int change_clocksource_f(void *);
 change_clocksource_f *change_clocksource;
 
+inline u64 clocksource_get_ns(struct clocksource *cls) {
+    return (cls->read(cls) * cls->mult) >> cls->shift;
+}
+
 static void *lookup_function_address(const char *func_name) {
     static void *kallsyms_addr = NULL;
     static kallsyms_lookup_name_f *kallsyms_func;
@@ -103,6 +107,7 @@ volatile int current_refclk = 100000;
 int target_refclk = 0;
 bool ssc = false;
 bool immediate_apply = false;
+bool keep_bclk = false;
 
 static void refclk_set(int clk_khz) {
     int clk_mhz = clk_khz / 1000;
@@ -137,7 +142,7 @@ static bool refclk_set_target(int clk) {
         return false;
     }
     mutex_lock(&refclk_set_mutex);
-    
+
     pr_info("Setting BCLK to %d kHz\n", clk); 
     if (immediate_apply) {
         refclk_set(clk);
@@ -146,18 +151,17 @@ static bool refclk_set_target(int clk) {
         int prev_delay_clk = current_refclk;
         while (clk > current_refclk) {
             refclk_set(min(current_refclk + 125, clk));
-            udelay(50);
+            udelay(200);
             // Additional delay if the difference in clock is too high
-            if (current_refclk - prev_delay_clk > 1000) {
-                prev_delay_clk = current_refclk;
+            if (current_refclk - prev_delay_clk >= 1000) {
                 msleep(200);
             }
         }
         while (clk < current_refclk) {; 
             refclk_set(max(current_refclk - 250, clk));
-            udelay(50);
+            udelay(200);
             // Additional delay if the difference in clock is too high
-            if (prev_delay_clk - current_refclk > 2000) {
+            if (prev_delay_clk - current_refclk >= 2000) {
                 prev_delay_clk = current_refclk;
                 msleep(200);
             }
@@ -244,7 +248,9 @@ static int zen_bclk_oc_probe(struct platform_device *dev) {
 static int zen_bclk_oc_remove(struct platform_device *dev) {
 
     device_remove_file(&dev->dev, &dev_attr_bclk_khz);
-    refclk_set_target(100000);
+    if (!keep_bclk) {
+        refclk_set_target(100000);
+    }
 
     udelay(500);
     return 0;
@@ -252,7 +258,9 @@ static int zen_bclk_oc_remove(struct platform_device *dev) {
 int pre_suspend_refclk = 100000;
 static int zen_bclk_oc_suspend(struct device *dev) {
     pre_suspend_refclk = current_refclk;
-    refclk_set_target(100000);
+    if (!keep_bclk) {
+        refclk_set_target(100000);
+    }
     return 0;
 }
 
@@ -309,3 +317,4 @@ module_exit(zen_bclk_oc_exit);
 module_param_named(bclk_khz, target_refclk, int, 0644);
 module_param_named(ssc, ssc, bool, 0644);
 module_param_named(immediate_apply, immediate_apply, bool, 0644);
+module_param_named(keep_bclk, keep_bclk, bool, 0644);
