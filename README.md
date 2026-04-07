@@ -19,7 +19,7 @@ All desktop and mobile CPUs using Zen 2-3 architecture might be supported, inclu
 - Asus Vivobook M1603Q ✅
 
 ### Motherboard
-- Desktop Acer PRIME B450M-A II ✅
+- Acer PRIME B450M-A II ✅
 
 # Installation
 ### Requirements
