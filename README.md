@@ -31,7 +31,7 @@ All desktop and mobile CPUs using Zen 2-3 architecture might be supported, inclu
 1. Clone this repository and enter the directory
 2. Run `sudo make dkms-install` command and reboot
 
-To test bclk oc at runtime, run `echo <bclk_khz> | sudo tee /sys/kernel/zen_oc_cpufreq/bclk_khz` command
+To test bclk oc at runtime, run `echo <bclk_khz> | sudo tee /sys/devices/platform/zen-bclk-oc/bclk_khz` command
 
 To apply blck oc at next boot, run `sudo ./set-boot-oc.sh <bclk_khz>` command
 
