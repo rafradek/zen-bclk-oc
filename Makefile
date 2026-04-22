@@ -11,7 +11,7 @@ clean:
 	make -C /lib/modules/$(shell uname -r)/build M=$(PWD) clean
 
 dkms-install:
-	dkms remove $(MODULE_NAME)/$(VERSION) --all -q
+	-dkms remove $(MODULE_NAME)/$(VERSION) --all -q
 	rm -rf $(DKMS_ROOT_PATH)
 	mkdir $(DKMS_ROOT_PATH)
 	cp dkms.conf Makefile mod.c $(DKMS_ROOT_PATH)
